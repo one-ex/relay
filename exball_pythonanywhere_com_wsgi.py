@@ -14,8 +14,8 @@ if path not in sys.path:
     sys.path.insert(0, path)
 
 # Atur variabel lingkungan
-os.environ['TELEGRAM_BOT_TOKEN'] = '8772175831:AAGrHg6FIOpIw-9TpUskcjOkvyhgJH5TSGs'
-os.environ['RELAY_SECRET_KEY'] = '12e485bf6055db595c510786444c50348e220592bc41c4ce5298bf0875f58915'
+os.environ['TELEGRAM_BOT_TOKEN'] = ''
+os.environ['RELAY_SECRET_KEY'] = ''
 
 # Impor aplikasi Flask
 from relay_app import app as application
