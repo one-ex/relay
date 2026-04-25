@@ -23,6 +23,12 @@ app.logger.setLevel(logging.DEBUG)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 RELAY_SECRET_KEY = os.environ.get("RELAY_SECRET_KEY")
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Endpoint sederhana untuk memeriksa apakah aplikasi relay berjalan."""
+    app.logger.info("Health check endpoint was hit.")
+    return "Relay is alive!", 200
+
 @app.route('/bot<path:token>/<path:method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def forward_to_telegram(token, method):
     """
