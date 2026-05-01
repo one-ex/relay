@@ -17,7 +17,7 @@ formatter = logging.Formatter(
 )
 handler.setFormatter(formatter)
 app.logger.addHandler(handler)
-app.logger.setLevel(logging.DEBUG)
+app.logger.setLevel(logging.WARNING)
 
 # Ambil token bot dan secret key dari environment variables untuk keamanan
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -126,4 +126,4 @@ def forward_to_telegram(token, method):
 
 if __name__ == '__main__':
     # Ini hanya untuk testing lokal, di PythonAnywhere akan dijalankan oleh WSGI server
-    app.run(debug=True)
+    app.run(debug=False)
