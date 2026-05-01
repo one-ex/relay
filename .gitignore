@@ -1,3 +1,4 @@
 .env
 error.log
 old_error.log
+access.log
