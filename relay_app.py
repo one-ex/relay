@@ -4,6 +4,8 @@ import requests
 from flask import Flask, request, jsonify
 import logging
 from logging.handlers import RotatingFileHandler
+import time
+import random
 
 app = Flask(__name__)
 
@@ -17,11 +19,44 @@ formatter = logging.Formatter(
 )
 handler.setFormatter(formatter)
 app.logger.addHandler(handler)
-app.logger.setLevel(logging.WARNING)
+app.logger.setLevel(logging.DEBUG)
 
 # Ambil token bot dan secret key dari environment variables untuk keamanan
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 RELAY_SECRET_KEY = os.environ.get("RELAY_SECRET_KEY")
+
+def make_request_with_retry(method_func, *args, **kwargs):
+    """
+    Fungsi untuk melakukan HTTP request dengan retry logic dan exponential backoff.
+    Menangani ProxyError dan koneksi timeout dari PythonAnywhere.
+    """
+    max_retries = 3
+    base_delay = 1.0  # Base delay in seconds
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            app.logger.info(f"Attempting request (attempt {attempt}/{max_retries})")
+            response = method_func(*args, **kwargs)
+            response.raise_for_status()
+            
+            app.logger.info(f"Request successful on attempt {attempt}")
+            return response
+            
+        except (requests.exceptions.ProxyError, 
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+                requests.exceptions.RequestException) as e:
+            
+            if attempt == max_retries:
+                app.logger.error(f"Request failed after {max_retries} attempts: {str(e)}")
+                raise e
+            
+            # Calculate exponential backoff with jitter
+            delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+            app.logger.warning(f"Request failed (attempt {attempt}/{max_retries}): {str(e)}. Retrying in {delay:.1f}s...")
+            time.sleep(delay)
+    
+    return None
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -80,19 +115,19 @@ def forward_to_telegram(token, method):
     app.logger.debug(f"URL to Telegram: {telegram_api_url}")
 
     try:
-        # Gunakan method HTTP yang sama yang diterima
+        # Gunakan method HTTP yang sama yang diterima dengan retry logic
         if request.method == 'GET':
-            res = requests.get(telegram_api_url, params=data if data else None, timeout=30, stream=True)
+            res = make_request_with_retry(requests.get, telegram_api_url, params=data if data else None, timeout=30, stream=True)
         elif request.method == 'POST':
-            res = requests.post(telegram_api_url, json=data, timeout=30, stream=True)
+            res = make_request_with_retry(requests.post, telegram_api_url, json=data, timeout=30, stream=True)
         elif request.method == 'PUT':
-            res = requests.put(telegram_api_url, json=data, timeout=30, stream=True)
+            res = make_request_with_retry(requests.put, telegram_api_url, json=data, timeout=30, stream=True)
         elif request.method == 'DELETE':
-            res = requests.delete(telegram_api_url, json=data, timeout=30, stream=True)
+            res = make_request_with_retry(requests.delete, telegram_api_url, json=data, timeout=30, stream=True)
         else:
-            res = requests.request(request.method, telegram_api_url, json=data, timeout=30, stream=True)
+            res = make_request_with_retry(requests.request, request.method, telegram_api_url, json=data, timeout=30, stream=True)
         
-        res.raise_for_status() # Akan error jika status code bukan 2xx
+        # res sudah di-raise_for_status() di dalam make_request_with_retry
 
         # Baca konten respons untuk logging dan untuk dikirim kembali
         response_content = res.content
@@ -117,13 +152,16 @@ def forward_to_telegram(token, method):
             status=res.status_code
         )
 
-    except requests.exceptions.RequestException as e:
-        # Tangani error koneksi atau timeout
-        error_message = f"Failed to relay request to Telegram: {str(e)}"
+    except (requests.exceptions.ProxyError, 
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.RequestException) as e:
+        # Tangani error koneksi atau timeout setelah semua retry attempts
+        error_message = f"Failed to relay request to Telegram after retries: {str(e)}"
         app.logger.error(error_message)
         app.logger.debug("--- REQUEST END (ERROR) ---")
         return jsonify({"error": error_message}), 502 # 502 Bad Gateway
 
 if __name__ == '__main__':
     # Ini hanya untuk testing lokal, di PythonAnywhere akan dijalankan oleh WSGI server
-    app.run(debug=False)
+    app.run(debug=True)
