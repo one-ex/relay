@@ -19,7 +19,7 @@ formatter = logging.Formatter(
 )
 handler.setFormatter(formatter)
 app.logger.addHandler(handler)
-app.logger.setLevel(logging.DEBUG)
+app.logger.setLevel(logging.WARNING)
 
 # Ambil token bot dan secret key dari environment variables untuk keamanan
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -27,11 +27,11 @@ RELAY_SECRET_KEY = os.environ.get("RELAY_SECRET_KEY")
 
 def make_request_with_retry(method_func, *args, **kwargs):
     """
-    Fungsi untuk melakukan HTTP request dengan retry logic dan exponential backoff.
-    Menangani ProxyError dan koneksi timeout dari PythonAnywhere.
+    Fungsi untuk melakukan HTTP request dengan retry logic.
+    Menangani ProxyError dan koneksi timeout dari PythonAnywhere dengan delay 2 detik dan 10 percobaan.
     """
-    max_retries = 3
-    base_delay = 1.0  # Base delay in seconds
+    max_retries = 10
+    retry_delay = 2.0  # Fixed delay of 2 seconds between retries
     
     for attempt in range(1, max_retries + 1):
         try:
@@ -51,10 +51,9 @@ def make_request_with_retry(method_func, *args, **kwargs):
                 app.logger.error(f"Request failed after {max_retries} attempts: {str(e)}")
                 raise e
             
-            # Calculate exponential backoff with jitter
-            delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
-            app.logger.warning(f"Request failed (attempt {attempt}/{max_retries}): {str(e)}. Retrying in {delay:.1f}s...")
-            time.sleep(delay)
+            # Use fixed 2 second delay between retries
+            app.logger.warning(f"Request failed (attempt {attempt}/{max_retries}): {str(e)}. Retrying in {retry_delay}s...")
+            time.sleep(retry_delay)
     
     return None
 
@@ -164,4 +163,4 @@ def forward_to_telegram(token, method):
 
 if __name__ == '__main__':
     # Ini hanya untuk testing lokal, di PythonAnywhere akan dijalankan oleh WSGI server
-    app.run(debug=True)
+    app.run(debug=False)
